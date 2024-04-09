@@ -1,0 +1,1 @@
+prices = {"GREEN_POTION_0": 50}

@@ -2,12 +2,18 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 from src.api import auth
 from enum import Enum
+import sqlalchemy
+from src import database as db
+from src.prices import prices
 
 router = APIRouter(
     prefix="/carts",
     tags=["cart"],
     dependencies=[Depends(auth.get_api_key)],
 )
+
+next_cart_id = 1
+customer_carts = {}
 
 class search_sort_options(str, Enum):
     customer_name = "customer_name"
@@ -85,7 +91,13 @@ def post_visits(visit_id: int, customers: list[Customer]):
 @router.post("/")
 def create_cart(new_cart: Customer):
     """ """
-    return {"cart_id": 1}
+    id = next_cart_id
+    cart = {}
+    customer_carts[id] = cart
+
+    next_cart_id += 1
+
+    return {"cart_id": id}
 
 
 class CartItem(BaseModel):
@@ -95,6 +107,9 @@ class CartItem(BaseModel):
 @router.post("/{cart_id}/items/{item_sku}")
 def set_item_quantity(cart_id: int, item_sku: str, cart_item: CartItem):
     """ """
+    cart = customer_carts[cart_id]
+    
+    cart[item_sku] = cart_item.quantity
 
     return "OK"
 
@@ -105,5 +120,26 @@ class CartCheckout(BaseModel):
 @router.post("/{cart_id}/checkout")
 def checkout(cart_id: int, cart_checkout: CartCheckout):
     """ """
+    cart = customer_carts[cart_id]
 
-    return {"total_potions_bought": 1, "total_gold_paid": 50}
+    potions_bought = 0
+    total_cost = 0
+    for sku, quant in cart.items():
+        potions_bought += quant
+        total_cost += prices[sku]
+
+
+    with db.engine.begin() as connection:
+        inv = connection.execute(sqlalchemy.text("SELECT * FROM global_inventory"))
+        for row in inv:
+            num_potions = row.num_green_potions
+            gold = row.gold
+        
+        num_potions -= potions_bought
+        gold += total_cost
+
+        connection.execute(sqlalchemy.text(f"UPDATE global_inventory SET num_green_potions = {num_potions}"))
+
+        connection.execute(sqlalchemy.text(f"UPDATE global_inventory SET gold = {gold}"))
+
+    return {"total_potions_bought": potions_bought, "total_gold_paid": total_cost}
