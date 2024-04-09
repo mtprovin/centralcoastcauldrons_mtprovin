@@ -91,9 +91,11 @@ def post_visits(visit_id: int, customers: list[Customer]):
 @router.post("/")
 def create_cart(new_cart: Customer):
     """ """
-    id = next_cart_id
+    global next_cart_id
+    global customer_carts
     cart = {}
-    customer_carts[id] = cart
+    id = next_cart_id
+    customer_carts[next_cart_id] = cart
 
     next_cart_id += 1
 
@@ -107,6 +109,7 @@ class CartItem(BaseModel):
 @router.post("/{cart_id}/items/{item_sku}")
 def set_item_quantity(cart_id: int, item_sku: str, cart_item: CartItem):
     """ """
+    global customer_carts
     cart = customer_carts[cart_id]
     
     cart[item_sku] = cart_item.quantity
@@ -120,13 +123,14 @@ class CartCheckout(BaseModel):
 @router.post("/{cart_id}/checkout")
 def checkout(cart_id: int, cart_checkout: CartCheckout):
     """ """
+    global customer_carts
     cart = customer_carts[cart_id]
 
     potions_bought = 0
     total_cost = 0
     for sku, quant in cart.items():
         potions_bought += quant
-        total_cost += prices[sku]
+        total_cost += prices[sku]*quant
 
 
     with db.engine.begin() as connection:
