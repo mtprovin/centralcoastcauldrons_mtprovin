@@ -139,11 +139,14 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
             num_potions = row.num_green_potions
             gold = row.gold
         
-        num_potions -= potions_bought
-        gold += total_cost
+        if num_potions < potions_bought:
+            return {}
+        else:
+            num_potions -= potions_bought
+            gold += total_cost
 
-        connection.execute(sqlalchemy.text(f"UPDATE global_inventory SET num_green_potions = {num_potions}"))
+            connection.execute(sqlalchemy.text(f"UPDATE global_inventory SET num_green_potions = {num_potions}"))
 
-        connection.execute(sqlalchemy.text(f"UPDATE global_inventory SET gold = {gold}"))
+            connection.execute(sqlalchemy.text(f"UPDATE global_inventory SET gold = {gold}"))
 
     return {"total_potions_bought": potions_bought, "total_gold_paid": total_cost}

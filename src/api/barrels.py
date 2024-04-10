@@ -37,6 +37,9 @@ def post_deliver_barrels(barrels_delivered: list[Barrel], order_id: int):
             gold = row.gold
             ml = row.num_green_ml
         
+        if gold < cost:
+            return "FAIL"
+
         # subtract cost
         gold = gold - cost
         connection.execute(sqlalchemy.text(f"UPDATE global_inventory SET gold = {gold}"))
