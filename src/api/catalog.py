@@ -16,12 +16,15 @@ def get_catalog():
         for row in inv:
             num_potions = row.num_green_potions
 
-    return [
-            {
+    catalog = []
+
+    if num_potions > 0:
+        catalog.append({
                 "sku": "GREEN_POTION_0",
                 "name": "green potion",
                 "quantity": num_potions,
                 "price": prices["GREEN_POTION_0"],
                 "potion_type": [0, 100, 0, 0],
-            }
-        ]
+            })
+
+    return catalog
