@@ -19,20 +19,30 @@ class PotionInventory(BaseModel):
 @router.post("/deliver/{order_id}")
 def post_deliver_bottles(potions_delivered: list[PotionInventory], order_id: int):
     """ """
+    print("post_deliver_bottles ----------")
     print(f"potions delievered: {potions_delivered} order_id: {order_id}")
 
     with db.engine.begin() as connection:
         inv = connection.execute(sqlalchemy.text("SELECT * FROM global_inventory"))
         for row in inv:
-            green_ml = row.num_green_ml
-            num_green_potions = row.num_green_potions
+            ml = [row.num_red_ml, row.num_green_ml, row.num_blue_ml]
+            num_potions = [row.num_red_potions, row.num_green_potions, row.num_blue_potions]
 
+        p_names = ["num_red_potions", "num_green_potions", "num_blue_potions"]
+        ml_names = ["num_red_ml", "num_green_ml", "num_blue_ml"]
         for potionType in potions_delivered:
-            if potionType.potion_type == [0, 100, 0, 0]:
-                # update ml and potions
-                connection.execute(sqlalchemy.text(f"UPDATE global_inventory SET num_green_potions = {num_green_potions+potionType.quantity}"))
-
-                connection.execute(sqlalchemy.text(f"UPDATE global_inventory SET num_green_ml = {green_ml-100*potionType.quantity}"))
+            for i in range(3):
+                p_type = [0,0,0,0]
+                p_type[i] = 100
+                if potionType.potion_type == p_type:
+                    num_potions[i] += potionType.quantity
+                    ml[i] -= 100*potionType.quantity
+                    
+                    # update ml and potions
+                    print(f"UPDATE global_inventory SET {p_names[i]} = {num_potions[i]}")
+                    connection.execute(sqlalchemy.text(f"UPDATE global_inventory SET {p_names[i]} = {num_potions[i]}"))
+                    print(f"UPDATE global_inventory SET {ml_names[i]} = {ml[i]}")
+                    connection.execute(sqlalchemy.text(f"UPDATE global_inventory SET {ml_names[i]} = {ml[i]}"))
 
 
     return "OK"
@@ -42,6 +52,7 @@ def get_bottle_plan():
     """
     Go from barrel to bottle.
     """
+    print("get_bottle_plan ----------")
 
     # Each bottle has a quantity of what proportion of red, blue, and
     # green potion to add.
@@ -52,17 +63,18 @@ def get_bottle_plan():
     with db.engine.begin() as connection:
         inv = connection.execute(sqlalchemy.text("SELECT * FROM global_inventory"))
         for row in inv:
-            ml = row.num_green_ml
+            quant = [math.floor(row.num_red_ml/100), math.floor(row.num_green_ml/100), math.floor(row.num_blue_ml/100)]
 
-        quant = math.floor(ml / 100)
-
-        if quant > 0:
-            plan.append({
-                "potion_type": [0, 100, 0, 0],
-                "quantity": quant,
-            })
+        for i in range(3):
+            if quant[i] > 0:
+                p_type = [0,0,0,0]
+                p_type[i] += 100
+                plan.append({
+                    "potion_type": p_type,
+                    "quantity": quant[i],
+                })
         
-
+    print("plan: ", plan)
     return plan
 
 if __name__ == "__main__":
