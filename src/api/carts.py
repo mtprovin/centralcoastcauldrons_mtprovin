@@ -12,9 +12,6 @@ router = APIRouter(
     dependencies=[Depends(auth.get_api_key)],
 )
 
-next_cart_id = 1
-customer_carts = {}
-
 class search_sort_options(str, Enum):
     customer_name = "customer_name"
     item_sku = "item_sku"
@@ -94,13 +91,20 @@ def create_cart(new_cart: Customer):
     """ """
     print("create_cart ----------")
     print("new_cart: ", new_cart)
-    global next_cart_id
-    global customer_carts
-    cart = {}
-    id = next_cart_id
-    customer_carts[next_cart_id] = cart
-
-    next_cart_id += 1
+    
+    with db.engine.begin() as connection:
+        id = connection.execute(sqlalchemy.text("""
+                                            INSERT INTO carts 
+                                            (name)
+                                            VALUES 
+                                            (:name)
+                                            RETURNING cart_id
+                                            """),
+                                            [{"name": new_cart.customer_name}]).one().cart_id
+        #id = connection.execute(sqlalchemy.text("""
+        #                                        INSERT INTO carts
+        #                                        OUTPUT cart_id
+        #                                        """)).one().id
 
     return {"cart_id": id}
 
@@ -114,13 +118,21 @@ def set_item_quantity(cart_id: int, item_sku: str, cart_item: CartItem):
     """ """
     print("set_item_quantity ----------")
     print(f"cart_id: {cart_id}, item_sku: {item_sku}, cart_item: {cart_item}")
-    if item_sku not in prices.keys():
-        print("Error: SKU doesn't exist")
 
-    global customer_carts
-    cart = customer_carts[cart_id]
-    
-    cart[item_sku] = cart_item.quantity
+    with db.engine.begin() as connection:
+        potion_id = connection.execute(sqlalchemy.text("""
+                                                        SELECT potion_id
+                                                        FROM potions
+                                                        WHERE sku = :item_sku
+                                                        """),
+                                                        [{"item_sku": item_sku}]).one().potion_id
+        connection.execute(sqlalchemy.text("""
+                                            INSERT INTO cart_items
+                                            (cart_id, potion_id, quantity)
+                                            VALUES
+                                            (:cart_id, :potion_id, :quantity)
+                                            """),
+                                            [{"cart_id": cart_id, "potion_id": potion_id, "quantity": cart_item.quantity}])
 
     return "OK"
 
@@ -133,40 +145,41 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
     """ """
     print("checkout ----------")
     print(f"cart_id: {cart_id}, cart_checkout: {cart_checkout}")
-    global customer_carts
-    cart = customer_carts[cart_id]
-
-    potions_bought = [0,0,0]
-    total_cost = 0
-    for sku, quant in cart.items():
-        if "RED" in sku:
-            potions_bought[0] += quant
-        elif "GREEN" in sku:
-            potions_bought[1] += quant
-        elif "BLUE" in sku:
-            potions_bought[2] += quant
-        total_cost += prices[sku]*quant
-
 
     with db.engine.begin() as connection:
-        inv = connection.execute(sqlalchemy.text("SELECT * FROM global_inventory"))
-        for row in inv:
-            num_potions = [row.num_red_potions, row.num_green_potions, row.num_blue_potions]
-            gold = row.gold
-        
-        for i in range(3):
-            if num_potions[i] < potions_bought[i]:
-                return {}   # invalid order
-        
-        p_names = ["num_red_potions", "num_green_potions", "num_blue_potions"]
-        for i in range(3):
-            num_potions[i] -= potions_bought[i]
-            print(f"UPDATE global_inventory SET {p_names[i]} = {num_potions[i]}")
-            connection.execute(sqlalchemy.text(f"UPDATE global_inventory SET {p_names[i]} = {num_potions[i]}"))
+        potions_bought = connection.execute(sqlalchemy.text("""
+                                                            SELECT 
+                                                            cart_items.quantity AS quantity_bought,
+                                                            potions.potion_id,
+                                                            potions.price, 
+                                                            potions.sku
+                                            
+                                                            FROM cart_items
+                                                            JOIN potions ON cart_items.potion_id = potions.potion_id
+                                                            WHERE cart_items.cart_id = :cart_id
+                                                            """),
+                                                            [{"cart_id": cart_id}]).all()
 
-        gold += total_cost
-        print(f"UPDATE global_inventory SET gold = {gold}")
-        connection.execute(sqlalchemy.text(f"UPDATE global_inventory SET gold = {gold}"))
+        cost = 0
+        quantity_bought = 0
+        for item in potions_bought:
+            cost += item.price * item.quantity_bought
+            quantity_bought += item.quantity_bought
+            connection.execute(sqlalchemy.text("""
+                                                UPDATE potions SET
+                                                quantity = quantity - :quantity_bought
+                                                WHERE potion_id = :potion_id
+                                                """),
+                                                [{"quantity_bought": item.quantity_bought, "potion_id": item.potion_id}])
+            
+        connection.execute(sqlalchemy.text("""
+                                            UPDATE global_inventory SET
+                                            gold = gold + :cost,
+                                            num_potions = num_potions - :quantity_bought
+                                            """),
+                                            [{"quantity_bought": quantity_bought, "cost": cost}])
 
-    print(f"total_potions_bought: {sum(potions_bought)}, total_gold_paid: {total_cost}")
-    return {"total_potions_bought": sum(potions_bought), "total_gold_paid": total_cost}
+    # TODO: cleanup carts
+
+    print(f"total_potions_bought: {quantity_bought}, total_gold_paid: {cost}")
+    return {"total_potions_bought": quantity_bought, "total_gold_paid": cost}

@@ -13,23 +13,21 @@ def get_catalog():
     print("get_catalog ----------")
 
     with db.engine.begin() as connection:
-        inv = connection.execute(sqlalchemy.text("SELECT * FROM global_inventory"))
-        for row in inv:
-            num_potions = [row.num_red_potions, row.num_green_potions, row.num_blue_potions]
+        inv = connection.execute(sqlalchemy.text("""
+                                                 SELECT * 
+                                                 FROM potions
+                                                 """)).all()
 
     catalog = []
 
-    p_skus = ["RED_POTION_0", "GREEN_POTION_0", "BLUE_POTION_0"]
-    p_names = ["red potion", "green potion", "blue potion"]
-    p_types = [[100,0,0,0], [0,100,0,0], [0,0,100,0]]
-    for i in range(3):
-        if num_potions[i] > 0:
+    for item in inv:
+        if item.quantity > 0:
             catalog.append({
-                    "sku": p_skus[i],
-                    "name": p_names[i],
-                    "quantity": num_potions[i],
-                    "price": prices[p_skus[i]],
-                    "potion_type": p_types[i],
+                    "sku": item.sku,
+                    "name": item.sku,
+                    "quantity": item.quantity,
+                    "price": item.price,
+                    "potion_type": [item.red_ml, item.green_ml, item.blue_ml, item.dark_ml]
                 })
 
     print(f"catalog: {catalog}")
