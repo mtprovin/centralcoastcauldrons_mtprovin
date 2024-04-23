@@ -33,7 +33,7 @@ def post_deliver_bottles(potions_delivered: list[PotionInventory], order_id: int
         for potionType in potions_delivered:
             global potion_lookup
             # pretty hacky way to not have to lookup potion id by type
-            hash = potionType.potion_type[0] + potionType.potion_type[1]*100 + potionType.potion_type[2]*(100**2) + potionType.potion_type[3]*(100**3)
+            hash = potionType.potion_type[0] + potionType.potion_type[1]*101 + potionType.potion_type[2]*(101**2) + potionType.potion_type[3]*(101**3)
             id = potion_lookup[hash]
 
             red_ml_used += potionType.potion_type[0] * potionType.quantity
@@ -104,15 +104,14 @@ def get_bottle_plan():
         dark_ml = inv.dark_ml
         for p_type in p_types_sorted:
             if (red_ml >= p_type.red_ml and green_ml >= p_type.green_ml and
-                blue_ml >= p_type.blue_ml and dark_ml >= p_type.dark_ml and
-                100 not in p_type): # TODO: can get rid of this after testing potion mixes
+                blue_ml >= p_type.blue_ml and dark_ml >= p_type.dark_ml): # TODO: prioritize potion mixes
                 p_mix = [p_type.red_ml, p_type.green_ml, p_type.blue_ml, p_type.dark_ml]
                 plan.append({
                     "potion_type": p_mix,
                     "quantity": 1,
                 })
                 # pretty hacky way to not have to lookup potion id by type
-                hash = p_type.red_ml + p_type.green_ml*100 + p_type.blue_ml*(100**2) + p_type.dark_ml*(100**3)
+                hash = p_type.red_ml + p_type.green_ml*101 + p_type.blue_ml*(101**2) + p_type.dark_ml*(101**3)
                 global potion_lookup
                 potion_lookup[hash] = p_type.potion_id
                 red_ml -= p_type.red_ml
