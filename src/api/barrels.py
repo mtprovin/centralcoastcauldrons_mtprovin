@@ -5,6 +5,7 @@ import sqlalchemy
 from sqlalchemy.exc import IntegrityError
 from src import database as db
 import math
+import copy
 
 router = APIRouter(
     prefix="/barrels",
@@ -78,32 +79,78 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
     print("get_wholesale_purchase_plan ----------")
     print("catalog: ", wholesale_catalog)
 
-
-    # buy all we can of the cheapest
     # sort by cheapest barrels
     barrels_sorted = sorted(wholesale_catalog, key=lambda barrel: barrel.price)
 
-    # get current gold
+    # group into RGBD
+    barrels_grouped = [[] for i in range(4)] 
+    for b in barrels_sorted:
+        barrels_grouped[b.potion_type.index(1)].append(b)
+
     with db.engine.begin() as connection:
+        # get current gold and ml
         inv = connection.execute(sqlalchemy.text(
                                 """
-                                SELECT gold
+                                SELECT 
+                                gold,
+                                red_ml,
+                                green_ml,
+                                blue_ml,
+                                dark_ml
                                 FROM global_inventory
                                 """)).one()
         gold = inv.gold
+        ml = [inv.red_ml, inv.green_ml, inv.blue_ml, inv.dark_ml]
 
-    # construct plan
-    plan = []
+    # initial pass, evenly distribute barrel colors, add cheapest barrel 1 at a time for each color
+    done_buying = [False, False, False, False]
+    c_sorted = sorted(range(4), key=lambda c: ml[c])
     i = 0
-    while i < len(barrels_sorted) and gold > barrels_sorted[i].price:
-        plan.append({
-            "sku": barrels_sorted[i].sku,
-            "quantity": 1
-        })
-        gold -= barrels_sorted[i].price
+    budget = [0,0,0,0]
+    gold_remaining = gold
+    barrels_grouped_temp = copy.deepcopy(barrels_grouped)
+    while False in done_buying:
+        c = c_sorted[i]
+        if len(barrels_grouped_temp[c]) <= 0:
+            done_buying[c] = True
+        if not done_buying[c]:
+            cheapest_barrel = barrels_grouped_temp[c][0]
+            # if we have enough gold to buy 1 of the cheapest, add it to our budget for that color
+            if gold_remaining > cheapest_barrel.price:
+                budget[c] += cheapest_barrel.price
+                gold_remaining -= cheapest_barrel.price
+                cheapest_barrel.quantity -= 1
+                if cheapest_barrel.quantity <= 0:
+                    barrels_grouped_temp[c].pop(0)
+            else:
+                done_buying[c] = True
+        i = (i+1) % 4
 
-        i += 1
-    print("plan: ", plan)
+    # optimization, replace cheap purchases with equivalent expensive purchases
+    plan = []
+    # loop over colors
+    for c in c_sorted:
+        b = len(barrels_grouped[c]) - 1 # most expensive barrel
+
+        # loop over barrels
+        while b >= 0:
+            barrel = barrels_grouped[c][b]
+            quantity_bought = 0
+
+            # buy as much as possible
+            while quantity_bought < barrel.quantity and barrel.price <= gold_remaining + budget[c]:
+                quantity_bought += 1
+                budget[c] -= barrel.price
+                if budget[c] < 0:
+                    gold_remaining += budget[c]
+                    budget[c] = 0
+            if quantity_bought > 0:
+                plan.append({
+                    "sku": barrel.sku,
+                    "quantity": quantity_bought
+                })
+
+            b -= 1
 
     return plan
 
