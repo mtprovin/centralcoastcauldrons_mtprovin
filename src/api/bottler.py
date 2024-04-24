@@ -97,27 +97,43 @@ def get_bottle_plan():
         # sort by fewest potions
         p_types_sorted = sorted(p_types, key=lambda potion: potion.quantity)
 
-        plan = []
+        plan_dict = {p_type.potion_id: 0 for p_type in p_types_sorted}
+        
         red_ml = inv.red_ml
         green_ml = inv.green_ml
         blue_ml = inv.blue_ml
         dark_ml = inv.dark_ml
-        for p_type in p_types_sorted:
+
+        p = 0
+        while p < len(p_types_sorted):
+            p_type = p_types_sorted[p]
             if (red_ml >= p_type.red_ml and green_ml >= p_type.green_ml and
-                blue_ml >= p_type.blue_ml and dark_ml >= p_type.dark_ml): # TODO: prioritize potion mixes
-                p_mix = [p_type.red_ml, p_type.green_ml, p_type.blue_ml, p_type.dark_ml]
-                plan.append({
-                    "potion_type": p_mix,
-                    "quantity": 1,
-                })
-                # pretty hacky way to not have to lookup potion id by type
-                hash = p_type.red_ml + p_type.green_ml*101 + p_type.blue_ml*(101**2) + p_type.dark_ml*(101**3)
-                global potion_lookup
-                potion_lookup[hash] = p_type.potion_id
+                blue_ml >= p_type.blue_ml and dark_ml >= p_type.dark_ml):
+                plan_dict[p_type.potion_id] += 1
+
                 red_ml -= p_type.red_ml
                 green_ml -= p_type.green_ml
                 blue_ml -= p_type.blue_ml
                 dark_ml -= p_type.dark_ml
+
+                p_types_sorted = sorted(p_types, key=lambda potion: potion.quantity)
+                p = 0
+            else:
+                p += 1
+        
+        plan = []
+        for p_type in p_types_sorted:
+            if plan_dict[p_type.potion_id] > 0:
+                plan.append({
+                    "potion_type": [p_type.red_ml, p_type.green_ml, p_type.blue_ml, p_type.dark_ml],
+                    "quantity": plan_dict[p_type.potion_id],
+                })
+
+            global potion_lookup
+            if p_type.potion_id not in potion_lookup.values():
+                # pretty hacky way to not have to lookup potion id by type
+                hash = p_type.red_ml + p_type.green_ml*101 + p_type.blue_ml*(101**2) + p_type.dark_ml*(101**3)
+                potion_lookup[hash] = p_type.potion_id
         
     print("plan: ", plan)
     return plan
