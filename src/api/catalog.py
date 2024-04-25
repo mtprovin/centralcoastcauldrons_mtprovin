@@ -14,8 +14,17 @@ def get_catalog():
 
     with db.engine.begin() as connection:
         inv = connection.execute(sqlalchemy.text("""
-                                                 SELECT * 
+                                                 SELECT 
+                                                 sku,
+                                                 quantity,
+                                                 price,
+                                                 red_ml,
+                                                 green_ml,
+                                                 blue_ml,
+                                                 dark_ml
                                                  FROM potions
+                                                 ORDER BY quantity desc
+                                                 LIMIT 6
                                                  """)).all()
 
     catalog = []

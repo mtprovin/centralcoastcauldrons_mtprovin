@@ -7,6 +7,8 @@ from src import database as db
 import math
 import copy
 
+peak_potions = 0
+
 router = APIRouter(
     prefix="/barrels",
     tags=["barrels"],
@@ -96,11 +98,20 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
                                 red_ml,
                                 green_ml,
                                 blue_ml,
-                                dark_ml
+                                dark_ml,
+                                num_potions
                                 FROM global_inventory
                                 """)).one()
         gold = inv.gold
         ml = [inv.red_ml, inv.green_ml, inv.blue_ml, inv.dark_ml]
+        num_potions = inv.num_potions
+
+    # dont buy if we have more than 10 potions and haven't sold 35% of our stock
+    global peak_potions
+    peak_potions = max(peak_potions, num_potions)
+    if num_potions > 10 and (num_potions > peak_potions * .65):
+        return []
+    peak_potions = num_potions
 
     # initial pass, evenly distribute barrel colors, add cheapest barrel 1 at a time for each color
     done_buying = [False, False, False, False]
@@ -115,6 +126,7 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
             done_buying[c] = True
         if not done_buying[c]:
             cheapest_barrel = barrels_grouped_temp[c][0]
+            
             # if we have enough gold to buy 1 of the cheapest, add it to our budget for that color
             if gold_remaining > cheapest_barrel.price:
                 budget[c] += cheapest_barrel.price
