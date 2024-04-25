@@ -92,6 +92,7 @@ def get_bottle_plan():
                                                  blue_ml,
                                                  dark_ml
                                                  FROM potions
+                                                 WHERE discontinued = FALSE
                                                  """)).all()
 
         # sort by fewest potions
