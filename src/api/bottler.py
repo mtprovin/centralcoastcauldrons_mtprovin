@@ -98,7 +98,7 @@ def get_bottle_plan():
         p_types_sorted = sorted(p_types, key=lambda potion: potion.quantity)
 
         plan_dict = {p_type.potion_id: 0 for p_type in p_types_sorted}
-        
+
         red_ml = inv.red_ml
         green_ml = inv.green_ml
         blue_ml = inv.blue_ml
@@ -116,7 +116,7 @@ def get_bottle_plan():
                 blue_ml -= p_type.blue_ml
                 dark_ml -= p_type.dark_ml
 
-                p_types_sorted = sorted(p_types, key=lambda potion: potion.quantity)
+                p_types_sorted = sorted(p_types, key=lambda potion: potion.quantity + plan_dict[potion.potion_id])
                 p = 0
             else:
                 p += 1
