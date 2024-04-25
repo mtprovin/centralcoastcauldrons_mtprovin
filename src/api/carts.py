@@ -95,12 +95,12 @@ def create_cart(new_cart: Customer):
     with db.engine.begin() as connection:
         id = connection.execute(sqlalchemy.text("""
                                             INSERT INTO carts 
-                                            (name)
+                                            (name, class, level)
                                             VALUES 
-                                            (:name)
+                                            (:name, :class, :level)
                                             RETURNING cart_id
                                             """),
-                                            [{"name": new_cart.customer_name}]).one().cart_id
+                                            [{"name": new_cart.customer_name, "class": new_cart.character_class, "level": new_cart.level}]).one().cart_id
         #id = connection.execute(sqlalchemy.text("""
         #                                        INSERT INTO carts
         #                                        OUTPUT cart_id
