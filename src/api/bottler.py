@@ -126,7 +126,7 @@ def get_bottle_plan():
             if plan_dict[p_type.potion_id] > 0:
                 plan.append({
                     "potion_type": [p_type.red_ml, p_type.green_ml, p_type.blue_ml, p_type.dark_ml],
-                    "quantity": plan_dict[p_type.potion_id],
+                    "quantity": round(plan_dict[p_type.potion_id] * 0.775),
                 })
 
             global potion_lookup
