@@ -113,7 +113,7 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
                                 """)).all()
         num_potions = connection.execute(sqlalchemy.text(
                                 """
-                                SELECT SUM(change) AS num_potions
+                                SELECT COALESCE(SUM(change),0) AS num_potions
                                 FROM ledger
                                 RIGHT JOIN potions ON potions.inventory_id = ledger.inventory_id
                                 """)).one().num_potions
