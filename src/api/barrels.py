@@ -125,7 +125,7 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
     # dont buy if we have more than 10 potions and haven't sold 35% of our stock
     global peak_potions
     peak_potions = max(peak_potions, num_potions)
-    if num_potions > 10 and (num_potions > peak_potions * .65):
+    if num_potions > 10 and (num_potions > peak_potions * .75):
         return []
     peak_potions = num_potions
 
