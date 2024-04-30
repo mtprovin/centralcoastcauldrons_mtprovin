@@ -61,16 +61,28 @@ def post_deliver_barrels(barrels_delivered: list[Barrel], order_id: int):
                 
         print(f"gold_paid: {gold_paid} red_ml: {red_ml} green_ml: {green_ml} blue_ml: {blue_ml} dark_ml: {dark_ml}")
 
+        transaction = connection.execute(sqlalchemy.text(
+            """
+                INSERT INTO transactions
+                (description)
+                VALUES
+                ('deliver barrels')
+                RETURNING transaction_id
+            """)).one().transaction_id
+
         connection.execute(sqlalchemy.text(
             """
-                UPDATE global_inventory SET
-                red_ml = red_ml + :red_ml,
-                green_ml = green_ml + :green_ml, 
-                blue_ml = blue_ml + :blue_ml,
-                dark_ml = dark_ml + :dark_ml,
-                gold = gold - :gold
+                INSERT INTO ledger
+                (transaction_id, inventory_id, change)
+                VALUES
+                (:transaction_id, (SELECT inventory_id FROM inventory WHERE name = 'red_ml'), :red_ml)
+                (:transaction_id, (SELECT inventory_id FROM inventory WHERE name = 'green_ml'), :green_ml)
+                (:transaction_id, (SELECT inventory_id FROM inventory WHERE name = 'blue_ml'), :blue_ml)
+                (:transaction_id, (SELECT inventory_id FROM inventory WHERE name = 'dark_ml'), :dark_ml)
+                (:transaction_id, (SELECT inventory_id FROM inventory WHERE name = 'gold'), :gold)
             """),
-            [{"red_ml": red_ml, "green_ml": green_ml, "blue_ml": blue_ml, "dark_ml": dark_ml, "gold": gold_paid}])
+            [{"transaction_id": transaction,
+              "red_ml": red_ml, "green_ml": green_ml, "blue_ml": blue_ml, "dark_ml": dark_ml, "gold": -gold_paid}])
 
     return "OK"
 
@@ -93,18 +105,22 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
         # get current gold and ml
         inv = connection.execute(sqlalchemy.text(
                                 """
-                                SELECT 
-                                gold,
-                                red_ml,
-                                green_ml,
-                                blue_ml,
-                                dark_ml,
-                                num_potions
-                                FROM global_inventory
-                                """)).one()
-        gold = inv.gold
-        ml = [inv.red_ml, inv.green_ml, inv.blue_ml, inv.dark_ml]
-        num_potions = inv.num_potions
+                                SELECT SUM(change) AS total, inventory.name AS name
+                                FROM ledger
+                                JOIN inventory ON inventory.inventory_id = ledger.inventory_id
+                                WHERE inventory.name in ('gold', 'red_ml', 'green_ml', 'blue_ml', 'dark_ml')
+                                GROUP BY inventory.inventory_id
+                                """)).all()
+        num_potions = connection.execute(sqlalchemy.text(
+                                """
+                                SELECT SUM(change) AS num_potions
+                                FROM ledger
+                                JOIN potions ON potions.inventory_id = ledger.inventory_id
+                                """)).one().num_potions
+        totals = {row.name: row.total for row in inv}
+        gold = totals['gold'] + 100
+        ml = [totals['red_ml'], totals['green_ml'], totals['blue_ml'], totals['dark_ml']]
+
 
     # dont buy if we have more than 10 potions and haven't sold 35% of our stock
     global peak_potions

@@ -16,19 +16,25 @@ def get_inventory():
     """ """
     print("get_inventory ----------")
     with db.engine.begin() as connection:
-        globals = connection.execute(sqlalchemy.text("""
-                                                     SELECT 
-                                                     num_potions, 
-                                                     gold, 
-                                                     red_ml, 
-                                                     green_ml, 
-                                                     blue_ml, 
-                                                     dark_ml
-                                                     FROM global_inventory""")).one()
+        inv = connection.execute(sqlalchemy.text(
+                                """
+                                SELECT SUM(change) AS total, inventory.name AS name
+                                FROM ledger
+                                JOIN inventory ON inventory.inventory_id = ledger.inventory_id
+                                WHERE inventory.name in ('gold', 'red_ml', 'green_ml', 'blue_ml', 'dark_ml')
+                                GROUP BY inventory.inventory_id
+                                """)).all()
+        num_potions = connection.execute(sqlalchemy.text(
+                                """
+                                SELECT SUM(change) AS num_potions
+                                FROM ledger
+                                JOIN potions ON potions.inventory_id = ledger.inventory_id
+                                """)).one().num_potions
+        totals = {row.name: row.total for row in inv}
 
-    total_ml = globals.red_ml + globals.green_ml + globals.blue_ml + globals.dark_ml
+    total_ml = totals['red_ml'] + totals['green_ml'] + totals['blue_ml'] + totals['dark_ml']
 
-    return {"number_of_potions": globals.num_potions, "ml_in_barrels": total_ml, "gold": globals.gold}
+    return {"number_of_potions": num_potions, "ml_in_barrels": total_ml, "gold": totals['gold'] + 100}
 
 # Gets called once a day
 @router.post("/plan")
@@ -37,6 +43,7 @@ def get_capacity_plan():
     Start with 1 capacity for 50 potions and 1 capacity for 10000 ml of potion. Each additional 
     capacity unit costs 1000 gold.
     """
+    
 
     return {
         "potion_capacity": 0,

@@ -151,6 +151,7 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
                                                             SELECT 
                                                             cart_items.quantity AS quantity_bought,
                                                             potions.potion_id,
+                                                            potions.inventory_id,
                                                             potions.price, 
                                                             potions.sku
                                             
@@ -160,24 +161,39 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
                                                             """),
                                                             [{"cart_id": cart_id}]).all()
 
+
+        transaction = connection.execute(sqlalchemy.text(
+                """
+                    INSERT INTO transactions
+                    (description)
+                    VALUES
+                    ('cart checkout')
+                    RETURNING transaction_id
+                """)).one().transaction_id
+
+
         cost = 0
         quantity_bought = 0
         for item in potions_bought:
             cost += item.price * item.quantity_bought
             quantity_bought += item.quantity_bought
-            connection.execute(sqlalchemy.text("""
-                                                UPDATE potions SET
-                                                quantity = quantity - :quantity_bought
-                                                WHERE potion_id = :potion_id
-                                                """),
-                                                [{"quantity_bought": item.quantity_bought, "potion_id": item.potion_id}])
+            connection.execute(sqlalchemy.text(
+                                """
+                                    INSERT INTO ledger
+                                    (transaction_id, inventory_id, change)
+                                    VALUES
+                                    (:transaction_id, :inventory_id, :potion_quantity)
+                                """),
+                                [{"transaction_id": transaction, "inventory_id": item.inventory_id, "potion_quantity": item.quantity_bought}])
             
-        connection.execute(sqlalchemy.text("""
-                                            UPDATE global_inventory SET
-                                            gold = gold + :cost,
-                                            num_potions = num_potions - :quantity_bought
-                                            """),
-                                            [{"quantity_bought": quantity_bought, "cost": cost}])
+        connection.execute(sqlalchemy.text(
+                                """
+                                    INSERT INTO ledger
+                                    (transaction_id, inventory_id, change)
+                                    VALUES
+                                    (:transaction_id, (SELECT inventory_id FROM inventory WHERE name = 'gold'), :gold)
+                                """),
+                                [{"transaction_id": transaction, "gold": cost}])  
 
     # TODO: cleanup carts
 

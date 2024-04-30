@@ -16,8 +16,6 @@ class PotionInventory(BaseModel):
     potion_type: list[int]
     quantity: int
 
-potion_lookup = {}
-
 @router.post("/deliver/{order_id}")
 def post_deliver_bottles(potions_delivered: list[PotionInventory], order_id: int):
     """ """
@@ -25,42 +23,47 @@ def post_deliver_bottles(potions_delivered: list[PotionInventory], order_id: int
     print(f"potions delievered: {potions_delivered} order_id: {order_id}")
 
     with db.engine.begin() as connection:
-        potions_made = 0
         red_ml_used = 0
         green_ml_used = 0
         blue_ml_used = 0
         dark_ml_used = 0
+        transaction = connection.execute(sqlalchemy.text(
+                """
+                    INSERT INTO transactions
+                    (description)
+                    VALUES
+                    ('deliver bottles')
+                    RETURNING transaction_id
+                """)).one().transaction_id
+        
         for potionType in potions_delivered:
-            global potion_lookup
-            # pretty hacky way to not have to lookup potion id by type
-            hash = potionType.potion_type[0] + potionType.potion_type[1]*101 + potionType.potion_type[2]*(101**2) + potionType.potion_type[3]*(101**3)
-            id = potion_lookup[hash]
-
             red_ml_used += potionType.potion_type[0] * potionType.quantity
             green_ml_used += potionType.potion_type[1] * potionType.quantity
             blue_ml_used += potionType.potion_type[2] * potionType.quantity
             dark_ml_used += potionType.potion_type[3] * potionType.quantity
-            potions_made += potionType.quantity
             
-            connection.execute(sqlalchemy.text("""
-                                               UPDATE potions SET 
-                                               quantity = quantity + :quantity
-                                               WHERE potion_id = :potion_id
-                                               """),
-                                               [{"quantity": potionType.quantity, "potion_id": id}])
-        connection.execute(sqlalchemy.text("""
-                                            UPDATE global_inventory SET 
-                                            red_ml = red_ml - :red_ml,
-                                            green_ml = green_ml - :green_ml,
-                                            blue_ml = blue_ml - :blue_ml,
-                                            dark_ml = dark_ml - :dark_ml,
-                                            num_potions = num_potions + :potions_made
-                                            """), 
-                                            [{"red_ml": red_ml_used,
-                                              "green_ml": green_ml_used,
-                                              "blue_ml": blue_ml_used,
-                                              "dark_ml": dark_ml_used,
-                                              "potions_made": potions_made}])
+            connection.execute(sqlalchemy.text(
+                                """
+                                    INSERT INTO ledger
+                                    (transaction_id, inventory_id, change)
+                                    VALUES
+                                    (:transaction_id, :inventory_id, :potion_quantity)
+                                """),
+                                [{"transaction_id": transaction, "inventory_id": potionType.inventory_id, "potion_quantity": potionType.quantity}])
+
+        connection.execute(sqlalchemy.text(
+                            """
+                                INSERT INTO ledger
+                                (transaction_id, inventory_id, change)
+                                VALUES
+                                (:transaction_id, (SELECT inventory_id FROM inventory WHERE name = 'red_ml'), :red_ml)
+                                (:transaction_id, (SELECT inventory_id FROM inventory WHERE name = 'green_ml'), :green_ml)
+                                (:transaction_id, (SELECT inventory_id FROM inventory WHERE name = 'blue_ml'), :blue_ml)
+                                (:transaction_id, (SELECT inventory_id FROM inventory WHERE name = 'dark_ml'), :dark_ml)
+                            """),
+                            [{"transaction_id": transaction,
+                              "red_ml": -red_ml_used, "green_ml": -green_ml_used, "blue_ml": -blue_ml_used, "dark_ml": -dark_ml_used}])
+        
     return "OK"
 
 @router.post("/plan")
@@ -75,35 +78,39 @@ def get_bottle_plan():
     # Expressed in integers from 1 to 100 that must sum up to 100.
 
     with db.engine.begin() as connection:
-        inv = connection.execute(sqlalchemy.text("""
-                                                 SELECT 
-                                                 red_ml,
-                                                 green_ml,
-                                                 blue_ml,
-                                                 dark_ml
-                                                 FROM global_inventory
-                                                 """)).one()
+        inv = connection.execute(sqlalchemy.text(
+                                """
+                                SELECT SUM(change) AS total, inventory.name AS name
+                                FROM ledger
+                                JOIN inventory ON inventory.inventory_id = ledger.inventory_id
+                                WHERE inventory.name in ('red_ml', 'green_ml', 'blue_ml', 'dark_ml')
+                                GROUP BY inventory.inventory_id
+                                """)).all()
+        totals = {row.name: row.total for row in inv}
+
         p_types = connection.execute(sqlalchemy.text("""
-                                                 SELECT 
-                                                 potion_id,
-                                                 quantity,
-                                                 red_ml,
-                                                 green_ml,
-                                                 blue_ml,
-                                                 dark_ml
-                                                 FROM potions
-                                                 WHERE discontinued = FALSE
-                                                 """)).all()
+                                SELECT 
+                                potions.potion_id,
+                                COALESCE(SUM(ledger.change), 0) as quantity,
+                                potions.red_ml,
+                                potions.green_ml,
+                                potions.blue_ml,
+                                potions.dark_ml
+                                FROM potions
+                                LEFT JOIN ledger ON potions.inventory_id = ledger.inventory_id
+                                WHERE discontinued = FALSE
+                                GROUP BY potions.potion_id
+                                """)).all()
 
         # sort by fewest potions
         p_types_sorted = sorted(p_types, key=lambda potion: potion.quantity)
 
         plan_dict = {p_type.potion_id: 0 for p_type in p_types_sorted}
 
-        red_ml = inv.red_ml
-        green_ml = inv.green_ml
-        blue_ml = inv.blue_ml
-        dark_ml = inv.dark_ml
+        red_ml = totals['red_ml']
+        green_ml = totals['green_ml']
+        blue_ml = totals['blue_ml']
+        dark_ml = totals['dark_ml']
 
         p = 0
         while p < len(p_types_sorted):
@@ -129,12 +136,6 @@ def get_bottle_plan():
                     "potion_type": [p_type.red_ml, p_type.green_ml, p_type.blue_ml, p_type.dark_ml],
                     "quantity": round(plan_dict[p_type.potion_id] * 0.775),
                 })
-
-            global potion_lookup
-            if p_type.potion_id not in potion_lookup.values():
-                # pretty hacky way to not have to lookup potion id by type
-                hash = p_type.red_ml + p_type.green_ml*101 + p_type.blue_ml*(101**2) + p_type.dark_ml*(101**3)
-                potion_lookup[hash] = p_type.potion_id
         
     print("plan: ", plan)
     return plan

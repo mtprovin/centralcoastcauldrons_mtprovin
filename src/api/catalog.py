@@ -14,18 +14,20 @@ def get_catalog():
 
     with db.engine.begin() as connection:
         inv = connection.execute(sqlalchemy.text("""
-                                                 SELECT 
-                                                 sku,
-                                                 quantity,
-                                                 price,
-                                                 red_ml,
-                                                 green_ml,
-                                                 blue_ml,
-                                                 dark_ml
-                                                 FROM potions
-                                                 ORDER BY quantity desc
-                                                 LIMIT 6
-                                                 """)).all()
+                                SELECT 
+                                potions.sku,
+                                COALESCE(SUM(ledger.change), 0) as quantity,
+                                potions.price,
+                                potions.red_ml,
+                                potions.green_ml,
+                                potions.blue_ml,
+                                potions.dark_ml
+                                FROM potions
+                                LEFT JOIN ledger ON potions.inventory_id = ledger.inventory_id
+                                GROUP BY potions.potion_id
+                                ORDER BY quantity desc
+                                LIMIT 6
+                                """)).all()
 
     catalog = []
 

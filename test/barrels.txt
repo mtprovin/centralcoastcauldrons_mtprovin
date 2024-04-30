@@ -5,8 +5,20 @@
 {"sku":"MINI_RED_BARREL",       "ml_per_barrel":200,    "potion_type":[1, 0, 0, 0], "price":60,     "quantity":1}, 
 {"sku":"MINI_GREEN_BARREL",     "ml_per_barrel":200,    "potion_type":[0, 1, 0, 0], "price":60,     "quantity":1}, 
 {"sku":"MINI_BLUE_BARREL",      "ml_per_barrel":200,    "potion_type":[0, 0, 1, 0], "price":60,     "quantity":1}, 
+{"sku":"MEDIUM_RED_BARREL",     "ml_per_barrel":2500,   "potion_type":[1, 0, 0, 0], "price":250,     "quantity":10}, 
+{"sku":"MEDIUM_GREEN_BARREL",   "ml_per_barrel":2500,   "potion_type":[0, 1, 0, 0], "price":250,     "quantity":10}, 
+{"sku":"MEDIUM_BLUE_BARREL",    "ml_per_barrel":2500,   "potion_type":[0, 0, 1, 0], "price":300,     "quantity":10}, 
 {"sku":"LARGE_DARK_BARREL",     "ml_per_barrel":10000,  "potion_type":[0, 0, 0, 1], "price":750,    "quantity":10}, 
 {"sku":"LARGE_BLUE_BARREL",     "ml_per_barrel":10000,  "potion_type":[0, 0, 1, 0], "price":600,    "quantity":30}, 
 {"sku":"LARGE_GREEN_BARREL",    "ml_per_barrel":10000,  "potion_type":[0, 1, 0, 0], "price":400,    "quantity":30}, 
 {"sku":"LARGE_RED_BARREL",      "ml_per_barrel":10000,  "potion_type":[1, 0, 0, 0], "price":500,    "quantity":30}
 ]
+
+todo:
+- don't buy smaller barrels if already have a bigger one
+- handle capacity
+    - put in globals
+    - drop barrels until capacity is met
+    - drop potions until capacity is met
+    - buy a capacity if 80% full, try to double capacity
+- get rid of global in barrels
