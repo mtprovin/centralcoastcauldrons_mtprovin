@@ -75,10 +75,10 @@ def post_deliver_barrels(barrels_delivered: list[Barrel], order_id: int):
                 INSERT INTO ledger
                 (transaction_id, inventory_id, change)
                 VALUES
-                (:transaction_id, (SELECT inventory_id FROM inventory WHERE name = 'red_ml'), :red_ml)
-                (:transaction_id, (SELECT inventory_id FROM inventory WHERE name = 'green_ml'), :green_ml)
-                (:transaction_id, (SELECT inventory_id FROM inventory WHERE name = 'blue_ml'), :blue_ml)
-                (:transaction_id, (SELECT inventory_id FROM inventory WHERE name = 'dark_ml'), :dark_ml)
+                (:transaction_id, (SELECT inventory_id FROM inventory WHERE name = 'red_ml'), :red_ml),
+                (:transaction_id, (SELECT inventory_id FROM inventory WHERE name = 'green_ml'), :green_ml),
+                (:transaction_id, (SELECT inventory_id FROM inventory WHERE name = 'blue_ml'), :blue_ml),
+                (:transaction_id, (SELECT inventory_id FROM inventory WHERE name = 'dark_ml'), :dark_ml),
                 (:transaction_id, (SELECT inventory_id FROM inventory WHERE name = 'gold'), :gold)
             """),
             [{"transaction_id": transaction,
@@ -105,9 +105,9 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
         # get current gold and ml
         inv = connection.execute(sqlalchemy.text(
                                 """
-                                SELECT SUM(change) AS total, inventory.name AS name
+                                SELECT COALESCE(SUM(change),0) AS total, inventory.name AS name
                                 FROM ledger
-                                JOIN inventory ON inventory.inventory_id = ledger.inventory_id
+                                RIGHT JOIN inventory ON inventory.inventory_id = ledger.inventory_id
                                 WHERE inventory.name in ('gold', 'red_ml', 'green_ml', 'blue_ml', 'dark_ml')
                                 GROUP BY inventory.inventory_id
                                 """)).all()
@@ -115,9 +115,10 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
                                 """
                                 SELECT SUM(change) AS num_potions
                                 FROM ledger
-                                JOIN potions ON potions.inventory_id = ledger.inventory_id
+                                RIGHT JOIN potions ON potions.inventory_id = ledger.inventory_id
                                 """)).one().num_potions
         totals = {row.name: row.total for row in inv}
+
         gold = totals['gold'] + 100
         ml = [totals['red_ml'], totals['green_ml'], totals['blue_ml'], totals['dark_ml']]
 

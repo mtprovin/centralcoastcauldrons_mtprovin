@@ -47,18 +47,22 @@ def post_deliver_bottles(potions_delivered: list[PotionInventory], order_id: int
                                     INSERT INTO ledger
                                     (transaction_id, inventory_id, change)
                                     VALUES
-                                    (:transaction_id, :inventory_id, :potion_quantity)
+                                    (:transaction_id, 
+                                    (SELECT inventory_id FROM potions WHERE red_ml = :red_ml AND green_ml = :green_ml AND blue_ml = :blue_ml AND dark_ml = :dark_ml LIMIT 1), 
+                                    :potion_quantity)
                                 """),
-                                [{"transaction_id": transaction, "inventory_id": potionType.inventory_id, "potion_quantity": potionType.quantity}])
+                                [{"transaction_id": transaction, "potion_quantity": potionType.quantity,
+                                  "red_ml": potionType.potion_type[0], "green_ml": potionType.potion_type[1], 
+                                  "blue_ml": potionType.potion_type[2], "dark_ml": potionType.potion_type[3]}])
 
         connection.execute(sqlalchemy.text(
                             """
                                 INSERT INTO ledger
                                 (transaction_id, inventory_id, change)
                                 VALUES
-                                (:transaction_id, (SELECT inventory_id FROM inventory WHERE name = 'red_ml'), :red_ml)
-                                (:transaction_id, (SELECT inventory_id FROM inventory WHERE name = 'green_ml'), :green_ml)
-                                (:transaction_id, (SELECT inventory_id FROM inventory WHERE name = 'blue_ml'), :blue_ml)
+                                (:transaction_id, (SELECT inventory_id FROM inventory WHERE name = 'red_ml'), :red_ml),
+                                (:transaction_id, (SELECT inventory_id FROM inventory WHERE name = 'green_ml'), :green_ml),
+                                (:transaction_id, (SELECT inventory_id FROM inventory WHERE name = 'blue_ml'), :blue_ml),
                                 (:transaction_id, (SELECT inventory_id FROM inventory WHERE name = 'dark_ml'), :dark_ml)
                             """),
                             [{"transaction_id": transaction,
@@ -80,9 +84,9 @@ def get_bottle_plan():
     with db.engine.begin() as connection:
         inv = connection.execute(sqlalchemy.text(
                                 """
-                                SELECT SUM(change) AS total, inventory.name AS name
+                                SELECT COALESCE(SUM(change),0) AS total, inventory.name AS name
                                 FROM ledger
-                                JOIN inventory ON inventory.inventory_id = ledger.inventory_id
+                                RIGHT JOIN inventory ON inventory.inventory_id = ledger.inventory_id
                                 WHERE inventory.name in ('red_ml', 'green_ml', 'blue_ml', 'dark_ml')
                                 GROUP BY inventory.inventory_id
                                 """)).all()

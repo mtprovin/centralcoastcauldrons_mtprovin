@@ -18,9 +18,9 @@ def get_inventory():
     with db.engine.begin() as connection:
         inv = connection.execute(sqlalchemy.text(
                                 """
-                                SELECT SUM(change) AS total, inventory.name AS name
+                                SELECT COALESCE(SUM(change),0) AS total, inventory.name AS name
                                 FROM ledger
-                                JOIN inventory ON inventory.inventory_id = ledger.inventory_id
+                                RIGHT JOIN inventory ON inventory.inventory_id = ledger.inventory_id
                                 WHERE inventory.name in ('gold', 'red_ml', 'green_ml', 'blue_ml', 'dark_ml')
                                 GROUP BY inventory.inventory_id
                                 """)).all()
@@ -28,7 +28,7 @@ def get_inventory():
                                 """
                                 SELECT SUM(change) AS num_potions
                                 FROM ledger
-                                JOIN potions ON potions.inventory_id = ledger.inventory_id
+                                RIGHT JOIN potions ON potions.inventory_id = ledger.inventory_id
                                 """)).one().num_potions
         totals = {row.name: row.total for row in inv}
 

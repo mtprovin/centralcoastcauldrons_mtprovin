@@ -156,7 +156,7 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
                                                             potions.sku
                                             
                                                             FROM cart_items
-                                                            JOIN potions ON cart_items.potion_id = potions.potion_id
+                                                            LEFT JOIN potions ON cart_items.potion_id = potions.potion_id
                                                             WHERE cart_items.cart_id = :cart_id
                                                             """),
                                                             [{"cart_id": cart_id}]).all()

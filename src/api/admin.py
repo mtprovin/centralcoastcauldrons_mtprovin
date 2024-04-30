@@ -21,7 +21,8 @@ def reset():
     with db.engine.begin() as connection:
         connection.execute(sqlalchemy.text("""
                                            UPDATE potions SET 
-                                           quantity = 0
+                                           quantity = 0,
+                                           price = 50
                                            """))
         connection.execute(sqlalchemy.text("DELETE FROM transactions"))
         connection.execute(sqlalchemy.text("DELETE FROM ledger"))
