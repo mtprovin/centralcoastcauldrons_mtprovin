@@ -184,7 +184,7 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
                                     VALUES
                                     (:transaction_id, :inventory_id, :potion_quantity)
                                 """),
-                                [{"transaction_id": transaction, "inventory_id": item.inventory_id, "potion_quantity": item.quantity_bought}])
+                                [{"transaction_id": transaction, "inventory_id": item.inventory_id, "potion_quantity": -item.quantity_bought}])
             
         connection.execute(sqlalchemy.text(
                                 """
