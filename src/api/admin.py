@@ -25,6 +25,8 @@ def reset():
                                            """))
         connection.execute(sqlalchemy.text("DELETE FROM transactions"))
         connection.execute(sqlalchemy.text("DELETE FROM ledger"))
+        connection.execute(sqlalchemy.text("DELETE FROM carts"))
+        connection.execute(sqlalchemy.text("DELETE FROM cart_items"))
 
     return "OK"
 

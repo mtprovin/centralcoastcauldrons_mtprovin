@@ -55,6 +55,19 @@ def search_orders(
     time is 5 total line items.
     """
 
+    metadata_obj = sqlalchemy.MetaData()
+
+    carts = sqlalchemy.Table("carts", metadata_obj, autoload_with=db.engine)
+    cart_items = sqlalchemy.Table("cart_items", metadata_obj, autoload_with=db.engine)
+    potions = sqlalchemy.Table("potions", metadata_obj, autoload_with=db.engine)
+    transactions = sqlalchemy.Table("transactions", metadata_obj, autoload_with=db.engine)
+
+    with db.engine.begin() as connection:
+        query = (sqlalchemy.select(carts.c.name, cart_items.c.quantity, cart_items.c.base_price, potions.c.sku, transactions.c.created_at).
+                    join(cart_items, cart_items.c.cart_id == carts.c.cart_id).
+                    join(potions, potions.c.potion_id == cart_items.c.potion_id).
+                    join(transactions, transactions.c.transaction_id == carts.c.transaction_id))
+
     return {
         "previous": "",
         "next": "",
@@ -120,19 +133,22 @@ def set_item_quantity(cart_id: int, item_sku: str, cart_item: CartItem):
     print(f"cart_id: {cart_id}, item_sku: {item_sku}, cart_item: {cart_item}")
 
     with db.engine.begin() as connection:
-        potion_id = connection.execute(sqlalchemy.text("""
-                                                        SELECT potion_id
-                                                        FROM potions
-                                                        WHERE sku = :item_sku
-                                                        """),
-                                                        [{"item_sku": item_sku}]).one().potion_id
-        connection.execute(sqlalchemy.text("""
-                                            INSERT INTO cart_items
-                                            (cart_id, potion_id, quantity)
-                                            VALUES
-                                            (:cart_id, :potion_id, :quantity)
-                                            """),
-                                            [{"cart_id": cart_id, "potion_id": potion_id, "quantity": cart_item.quantity}])
+        connection.execute(sqlalchemy.text(
+                """
+                INSERT INTO cart_items
+                (cart_id, potion_id, quantity)
+                VALUES
+                (:cart_id, (SELECT potion_id FROM potions WHERE sku = :item_sku LIMIT 1), :quantity)
+                """),
+                [{"cart_id": cart_id, "item_sku": item_sku, "quantity": cart_item.quantity}])
+        
+        connection.execute(sqlalchemy.text(
+                """
+                    UPDATE cart_items SET
+                    base_price = (SELECT price FROM potions WHERE potions.sku = :item_sku LIMIT 1)
+                    WHERE cart_items.cart_id = :cart_id AND cart_items.potion_id = (SELECT potion_id FROM potions WHERE sku = :item_sku LIMIT 1)
+                """),
+                [{"cart_id": cart_id, "item_sku": item_sku}])
 
     return "OK"
 
@@ -150,10 +166,8 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
         potions_bought = connection.execute(sqlalchemy.text("""
                                                             SELECT 
                                                             cart_items.quantity AS quantity_bought,
-                                                            potions.potion_id,
                                                             potions.inventory_id,
-                                                            potions.price, 
-                                                            potions.sku
+                                                            cart_items.base_price AS price
                                             
                                                             FROM cart_items
                                                             LEFT JOIN potions ON cart_items.potion_id = potions.potion_id
@@ -171,6 +185,13 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
                     RETURNING transaction_id
                 """)).one().transaction_id
 
+        connection.execute(sqlalchemy.text(
+                """
+                    UPDATE carts SET
+                    transaction_id = :transaction
+                    WHERE carts.cart_id = :cart_id
+                """),
+                [{"transaction": transaction, "cart_id": cart_id}])
 
         cost = 0
         quantity_bought = 0
