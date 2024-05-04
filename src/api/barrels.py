@@ -108,7 +108,7 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
                                 SELECT COALESCE(SUM(change),0) AS total, inventory.name AS name
                                 FROM ledger
                                 RIGHT JOIN inventory ON inventory.inventory_id = ledger.inventory_id
-                                WHERE inventory.name in ('gold', 'red_ml', 'green_ml', 'blue_ml', 'dark_ml')
+                                WHERE inventory.name in ('gold', 'red_ml', 'green_ml', 'blue_ml', 'dark_ml', 'capacity_ml')
                                 GROUP BY inventory.inventory_id
                                 """)).all()
         num_potions = connection.execute(sqlalchemy.text(
@@ -157,6 +157,7 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
 
     # optimization, replace cheap purchases with equivalent expensive purchases
     plan = []
+    ml_bought = 0
     # loop over colors
     for c in c_sorted:
         b = len(barrels_grouped[c]) - 1 # most expensive barrel
@@ -167,8 +168,11 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
             quantity_bought = 0
 
             # buy as much as possible
-            while quantity_bought < barrel.quantity and barrel.price <= gold_remaining + budget[c]:
+            while (quantity_bought < barrel.quantity and 
+                   ml_bought + sum(ml) + barrel.ml_per_barrel <= (totals['capacity_ml']+1) * 10000 and 
+                   barrel.price <= gold_remaining + budget[c]):
                 quantity_bought += 1
+                ml_bought += barrel.ml_per_barrel
                 budget[c] -= barrel.price
                 if budget[c] < 0:
                     gold_remaining += budget[c]

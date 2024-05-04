@@ -16,9 +16,5 @@
 
 todo:
 - don't buy smaller barrels if already have a bigger one
-- handle capacity
-    - put in globals
-    - drop barrels until capacity is met
-    - drop potions until capacity is met
-    - buy a capacity if 80% full, try to double capacity
 - get rid of global in barrels
+- catalog 3 most and 3 fewest

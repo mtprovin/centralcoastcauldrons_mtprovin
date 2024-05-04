@@ -87,10 +87,18 @@ def get_bottle_plan():
                                 SELECT COALESCE(SUM(change),0) AS total, inventory.name AS name
                                 FROM ledger
                                 RIGHT JOIN inventory ON inventory.inventory_id = ledger.inventory_id
-                                WHERE inventory.name in ('red_ml', 'green_ml', 'blue_ml', 'dark_ml')
+                                WHERE inventory.name in ('red_ml', 'green_ml', 'blue_ml', 'dark_ml', 'capacity_potions')
                                 GROUP BY inventory.inventory_id
                                 """)).all()
+
         totals = {row.name: row.total for row in inv}
+
+        num_potions = connection.execute(sqlalchemy.text(
+                                """
+                                SELECT COALESCE(SUM(change),0) AS num_potions
+                                FROM ledger
+                                RIGHT JOIN potions ON potions.inventory_id = ledger.inventory_id
+                                """)).one().num_potions
 
         p_types = connection.execute(sqlalchemy.text("""
                                 SELECT 
@@ -133,12 +141,16 @@ def get_bottle_plan():
             else:
                 p += 1
         
+        potions_bought = 0
+
         plan = []
         for p_type in p_types_sorted:
-            if plan_dict[p_type.potion_id] > 0:
+            if plan_dict[p_type.potion_id] > 0 and num_potions + potions_bought < (totals['capacity_potions']+1) * 50:
+                quantity = min(plan_dict[p_type.potion_id], ((totals['capacity_potions']+1) * 50) - (num_potions + potions_bought))
+                potions_bought += quantity
                 plan.append({
                     "potion_type": [p_type.red_ml, p_type.green_ml, p_type.blue_ml, p_type.dark_ml],
-                    "quantity": round(plan_dict[p_type.potion_id] * 0.775),
+                    "quantity": quantity
                 })
         
     print("plan: ", plan)
