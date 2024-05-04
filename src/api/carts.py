@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from src.api import auth
 from enum import Enum
 import sqlalchemy
+import sqlalchemy.sql.functions as func
 from src import database as db
 from src.prices import prices
 
@@ -62,25 +63,45 @@ def search_orders(
     potions = sqlalchemy.Table("potions", metadata_obj, autoload_with=db.engine)
     transactions = sqlalchemy.Table("transactions", metadata_obj, autoload_with=db.engine)
 
-    with db.engine.begin() as connection:
-        query = (sqlalchemy.select(carts.c.name, cart_items.c.quantity, cart_items.c.base_price, potions.c.sku, transactions.c.created_at).
-                    join(cart_items, cart_items.c.cart_id == carts.c.cart_id).
-                    join(potions, potions.c.potion_id == cart_items.c.potion_id).
-                    join(transactions, transactions.c.transaction_id == carts.c.transaction_id))
+    offset = 0
+    if search_page != "":
+        offset = int(search_page)
 
-    return {
-        "previous": "",
-        "next": "",
-        "results": [
+    response = {"previous": "", "next": "", "results": []}
+    with db.engine.begin() as connection:
+        query = (sqlalchemy.select(carts.c.name.label(search_sort_options.customer_name), 
+                                   func.concat(cart_items.c.quantity, ' ', potions.c.sku).label(search_sort_options.item_sku), 
+                                   (cart_items.c.base_price * cart_items.c.quantity).label(search_sort_options.line_item_total), 
+                                   transactions.c.created_at.label(search_sort_options.timestamp)).
+                    join(cart_items, cart_items.c.cart_id == carts.c.cart_id).
+                    join(potions, potions.c.potion_id == cart_items.c.potion_id, isouter=True).
+                    join(transactions, transactions.c.transaction_id == carts.c.transaction_id, isouter=True).
+                    where(transactions.c.created_at != None).
+                    where(potions.c.sku.ilike("%"+potion_sku+"%")).
+                    where(carts.c.name.ilike("%"+customer_name+"%")).
+                    order_by(sqlalchemy.text(sort_col + " " + sort_order)).
+                    offset(offset))
+        result = connection.execute(query)
+
+        if result.rowcount > 5:
+            response["next"] = str(offset + 5)
+        if offset > 0:
+            response["previous"] = str(offset - 5)
+
+        result = result.fetchmany(5)
+
+    for i, item in enumerate(result):
+        response["results"].append(
             {
-                "line_item_id": 1,
-                "item_sku": "1 oblivion potion",
-                "customer_name": "Scaramouche",
-                "line_item_total": 50,
-                "timestamp": "2021-01-01T00:00:00Z",
+                "line_item_id": i+1+offset,
+                "item_sku": item.item_sku,
+                "customer_name": item.customer_name,
+                "line_item_total": item.line_item_total,
+                "timestamp": item.timestamp
             }
-        ],
-    }
+        )
+
+    return response
 
 
 class Customer(BaseModel):
