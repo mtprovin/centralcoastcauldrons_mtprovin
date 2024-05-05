@@ -49,7 +49,7 @@ def get_capacity_plan():
                                 SELECT COALESCE(SUM(change),0) AS total, inventory.name AS name
                                 FROM ledger
                                 RIGHT JOIN inventory ON inventory.inventory_id = ledger.inventory_id
-                                WHERE inventory.name in ('gold', 'red_ml', 'green_ml', 'blue_ml', 'dark_ml', 'capacity_ml', 'capacity_potions')
+                                WHERE inventory.name in ('gold', 'capacity_ml', 'capacity_potions')
                                 GROUP BY inventory.inventory_id
                                 """)).all()
         num_potions = connection.execute(sqlalchemy.text(
@@ -61,27 +61,30 @@ def get_capacity_plan():
         totals = {row.name: row.total for row in inv}
 
         gold = totals['gold'] + 100
-        ml = [totals['red_ml'], totals['green_ml'], totals['blue_ml'], totals['dark_ml']]
 
-    gold_available = round(gold*.8)
+    gold_available = round(gold*.9)
 
-    done_buying = [False, False]
-    in_use = [sum(ml), num_potions]
-    capacities = [(totals['capacity_ml']+1)*10000, (totals['capacity_potions']+1)*50]
-    c_names = ["ml_capacity", "potion_capacity"]
-    c_sorted = sorted(range(2), key=lambda c: in_use[c] / capacities[c])
+    # buys potion capacity until percent in use is less than threshold
+    # buys 1 ml capacity for every 2 potion capacity
 
     plan = {"potion_capacity": 0, "ml_capacity": 0}
 
-    c = c_sorted[1]
-    while False in done_buying:
-        if gold_available > 1000 and in_use[c] / capacities[c] > 0.6:
-            plan[c_names[c]] += 1
-            capacities[c] += (10000 if c == 0 else 50)
+    done_buying = [False, False]
+    # start buying ml capacity if it's less than double potion capacity
+    c = 0 if totals['capacity_ml']*2+1 <= totals['capacity_potions'] else 1
+    while False in done_buying and gold_available >= 1000:
+        # buy a ml capacity if it's less than double potion capacity
+        if c == 0 and (totals['capacity_ml']+plan["ml_capacity"])*2+1 <= (totals['capacity_potions']+plan["potion_capacity"]):
             gold_available -= 1000
+            plan["ml_capacity"] += 1
+            done_buying[c] = False
+        elif c == 1 and num_potions / ((totals['capacity_potions']+plan["potion_capacity"]+1)*50) > 0.6:
+            gold_available -= 1000
+            plan["potion_capacity"] += 1
+            done_buying[c] = False
         else:
             done_buying[c] = True
-        c = (c+1) % 2
+        c = (c+1)%2
 
     return plan
 
