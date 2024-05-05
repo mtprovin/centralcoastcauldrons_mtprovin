@@ -63,7 +63,7 @@ def get_capacity_plan():
 
         gold = totals['gold'] + 100
 
-    gold_available = round(gold*.9)
+    gold_available = round(gold*.85)
 
     # buys potion capacity until percent in use is less than threshold
     # buys 1 ml capacity for every 2 potion capacity
@@ -79,7 +79,7 @@ def get_capacity_plan():
             gold_available -= 1000
             plan["ml_capacity"] += 1
             done_buying[c] = False
-        elif c == 1 and num_potions / ((totals['capacity_potions']+plan["potion_capacity"]+1)*50) > 0.6:
+        elif c == 1 and num_potions / ((totals['capacity_potions']+plan["potion_capacity"]+1)*50) > 0.67:
             gold_available -= 1000
             plan["potion_capacity"] += 1
             done_buying[c] = False
