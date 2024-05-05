@@ -25,7 +25,7 @@ def get_catalog():
                                 FROM potions
                                 LEFT JOIN ledger ON potions.inventory_id = ledger.inventory_id
                                 GROUP BY potions.potion_id
-                                ORDER BY quantity desc
+                                ORDER BY quantity desc, price asc
                                 LIMIT 6
                                 """)).all()
 
