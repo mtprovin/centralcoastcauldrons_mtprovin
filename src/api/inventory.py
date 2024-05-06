@@ -63,7 +63,7 @@ def get_capacity_plan():
 
         gold = totals['gold'] + 100
 
-    gold_available = round(gold*.8)
+    gold_available = round(gold*.7)
 
     # buys potion capacity until percent in use is less than threshold
     # buys 1 ml capacity for every 2 potion capacity
