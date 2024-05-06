@@ -125,7 +125,8 @@ def get_bottle_plan():
         dark_ml = totals['dark_ml']
 
         p = 0
-        while p < len(p_types_sorted):
+        potions_bought = 0
+        while p < len(p_types_sorted) and num_potions + potions_bought < (totals['capacity_potions']+1) * 50:
             p_type = p_types_sorted[p]
             if (red_ml >= p_type.red_ml and green_ml >= p_type.green_ml and
                 blue_ml >= p_type.blue_ml and dark_ml >= p_type.dark_ml):
@@ -138,16 +139,14 @@ def get_bottle_plan():
 
                 p_types_sorted = sorted(p_types, key=lambda potion: potion.quantity + plan_dict[potion.potion_id])
                 p = 0
+                potions_bought += 1
             else:
                 p += 1
-        
-        potions_bought = 0
 
         plan = []
         for p_type in p_types_sorted:
-            if plan_dict[p_type.potion_id] > 0 and num_potions + potions_bought < (totals['capacity_potions']+1) * 50:
-                quantity = min(plan_dict[p_type.potion_id], ((totals['capacity_potions']+1) * 50) - (num_potions + potions_bought))
-                potions_bought += quantity
+            if plan_dict[p_type.potion_id] > 0:
+                quantity = plan_dict[p_type.potion_id]
                 plan.append({
                     "potion_type": [p_type.red_ml, p_type.green_ml, p_type.blue_ml, p_type.dark_ml],
                     "quantity": quantity
