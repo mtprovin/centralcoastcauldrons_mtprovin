@@ -122,6 +122,7 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
         gold = totals['gold'] + 100
         ml = [totals['red_ml'], totals['green_ml'], totals['blue_ml'], totals['dark_ml']]
 
+    print("gold: ", gold)
 
     # dont buy if we have more than 10 potions and haven't sold 35% of our stock
     global peak_potions
@@ -157,6 +158,8 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
             else:
                 done_buying[c] = True
         i = (i+1) % 4
+
+    print("budget: ", budget)
 
     # optimization, replace cheap purchases with equivalent expensive purchases
     plan = []
