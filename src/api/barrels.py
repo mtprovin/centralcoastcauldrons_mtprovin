@@ -7,8 +7,6 @@ from src import database as db
 import math
 import copy
 
-peak_potions = 0
-
 router = APIRouter(
     prefix="/barrels",
     tags=["barrels"],
@@ -108,7 +106,7 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
                                 SELECT COALESCE(SUM(change),0) AS total, inventory.name AS name
                                 FROM ledger
                                 RIGHT JOIN inventory ON inventory.inventory_id = ledger.inventory_id
-                                WHERE inventory.name in ('gold', 'red_ml', 'green_ml', 'blue_ml', 'dark_ml', 'capacity_ml')
+                                WHERE inventory.name in ('gold', 'red_ml', 'green_ml', 'blue_ml', 'dark_ml', 'capacity_ml', 'capacity_potions')
                                 GROUP BY inventory.inventory_id
                                 """)).all()
         num_potions = connection.execute(sqlalchemy.text(
@@ -124,14 +122,9 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
 
     print("gold: ", gold)
 
-    # dont buy if we have more than 10 potions and haven't sold 35% of our stock
-    global peak_potions
-    print("peak potions: ", peak_potions)
     print("current potions: ", num_potions)
-    peak_potions = max(peak_potions, num_potions)
-    if num_potions > 10 and (num_potions > peak_potions * .75):
+    if num_potions > (totals['capacity_potions']+1)*50*.2:
         return []
-    peak_potions = num_potions
 
     # initial pass, evenly distribute barrel colors, add cheapest barrel 1 at a time for each color
     done_buying = [False, False, False, False]
