@@ -56,29 +56,22 @@ def search_orders(
     time is 5 total line items.
     """
 
-    metadata_obj = sqlalchemy.MetaData()
-
-    carts = sqlalchemy.Table("carts", metadata_obj, autoload_with=db.engine)
-    cart_items = sqlalchemy.Table("cart_items", metadata_obj, autoload_with=db.engine)
-    potions = sqlalchemy.Table("potions", metadata_obj, autoload_with=db.engine)
-    transactions = sqlalchemy.Table("transactions", metadata_obj, autoload_with=db.engine)
-
     offset = 0
     if search_page != "":
         offset = int(search_page)
 
     response = {"previous": "", "next": "", "results": []}
     with db.engine.begin() as connection:
-        query = (sqlalchemy.select(carts.c.name.label(search_sort_options.customer_name), 
-                                   func.concat(cart_items.c.quantity, ' ', potions.c.sku).label(search_sort_options.item_sku), 
-                                   (cart_items.c.base_price * cart_items.c.quantity).label(search_sort_options.line_item_total), 
-                                   transactions.c.created_at.label(search_sort_options.timestamp)).
-                    join(cart_items, cart_items.c.cart_id == carts.c.cart_id).
-                    join(potions, potions.c.potion_id == cart_items.c.potion_id, isouter=True).
-                    join(transactions, transactions.c.transaction_id == carts.c.transaction_id, isouter=True).
-                    where(transactions.c.created_at != None).
-                    where(potions.c.sku.ilike("%"+potion_sku+"%")).
-                    where(carts.c.name.ilike("%"+customer_name+"%")).
+        query = (sqlalchemy.select(db.carts.c.name.label(search_sort_options.customer_name), 
+                                   func.concat(db.cart_items.c.quantity, ' ', db.potions.c.sku).label(search_sort_options.item_sku), 
+                                   (db.cart_items.c.base_price * db.cart_items.c.quantity).label(search_sort_options.line_item_total), 
+                                   db.transactions.c.created_at.label(search_sort_options.timestamp)).
+                    join(db.cart_items, db.cart_items.c.cart_id == db.carts.c.cart_id).
+                    join(db.potions, db.potions.c.potion_id == db.cart_items.c.potion_id, isouter=True).
+                    join(db.transactions, db.transactions.c.transaction_id == db.carts.c.transaction_id, isouter=True).
+                    where(db.transactions.c.created_at != None).
+                    where(db.potions.c.sku.ilike("%"+potion_sku+"%")).
+                    where(db.carts.c.name.ilike("%"+customer_name+"%")).
                     order_by(sqlalchemy.text(sort_col + " " + sort_order)).
                     offset(offset))
         result = connection.execute(query)
