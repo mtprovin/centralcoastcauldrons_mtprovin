@@ -106,15 +106,9 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
                                 SELECT COALESCE(SUM(change),0) AS total, inventory.name AS name
                                 FROM ledger
                                 RIGHT JOIN inventory ON inventory.inventory_id = ledger.inventory_id
-                                WHERE inventory.name in ('gold', 'red_ml', 'green_ml', 'blue_ml', 'dark_ml', 'capacity_ml', 'capacity_potions')
+                                WHERE inventory.name in ('gold', 'red_ml', 'green_ml', 'blue_ml', 'dark_ml', 'capacity_ml')
                                 GROUP BY inventory.inventory_id
                                 """)).all()
-        num_potions = connection.execute(sqlalchemy.text(
-                                """
-                                SELECT COALESCE(SUM(change),0) AS num_potions
-                                FROM ledger
-                                RIGHT JOIN potions ON potions.inventory_id = ledger.inventory_id
-                                """)).one().num_potions
         totals = {row.name: row.total for row in inv}
 
         gold = totals['gold'] + 100
@@ -122,8 +116,9 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
 
     print("gold: ", gold)
 
-    print("current potions: ", num_potions)
-    if num_potions > (totals['capacity_potions']+1)*50*.2:
+    gold = gold * 0.75
+
+    if sum(ml) > (totals['capacity_ml']+1)*10000*.2:
         return []
 
     # initial pass, evenly distribute barrel colors, add cheapest barrel 1 at a time for each color
@@ -157,34 +152,48 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
     print("budget: ", budget)
 
     # optimization, replace cheap purchases with equivalent expensive purchases
-    plan = []
+    plan_dict = {barrel.sku: 0 for barrel in barrels_sorted}
     ml_bought = 0
-    # loop over colors
-    for c in c_sorted:
-        b = len(barrels_grouped[c]) - 1 # most expensive barrel
+    b_max = [len(barrels_grouped[c]) - 1 for c in range(4)] # most expensive barrel
+    done_buying = [False, False, False, False]
+    while False in done_buying:
+        c = c_sorted[i]
 
-        # loop over barrels
-        while b >= 0:
+        if b_max[c] >= 0:
+            b = b_max[c]
             barrel = barrels_grouped[c][b]
-            quantity_bought = 0
 
             # buy as much as possible
-            while (quantity_bought < barrel.quantity and 
-                   ml_bought + sum(ml) + barrel.ml_per_barrel <= (totals['capacity_ml']+1) * 10000 and 
-                   barrel.price <= gold_remaining + budget[c]):
-                quantity_bought += 1
+            if (ml_bought + sum(ml) + barrel.ml_per_barrel <= (totals['capacity_ml']+1) * 10000 and 
+                    barrel.price <= gold_remaining + budget[c]):
                 ml_bought += barrel.ml_per_barrel
                 budget[c] -= barrel.price
                 if budget[c] < 0:
                     gold_remaining += budget[c]
                     budget[c] = 0
-            if quantity_bought > 0:
-                plan.append({
-                    "sku": barrel.sku,
-                    "quantity": quantity_bought
-                })
+                barrel.quantity -= 1
+                if barrel.quantity <= 0:
+                    barrels_grouped[c].pop(b)
+                    b_max[c] -= 1
+                plan_dict[barrel.sku] += 1
+            else:
+                b_max[c] -= 1
 
-            b -= 1
+        elif not done_buying[c]:
+            gold_remaining += budget[c] # free budget
+            for j in range(4):
+                if b_max[j] >= 0:
+                    b_max[j] = len(barrels_grouped[j]) - 1
+            done_buying[c] = True
+        
+        i = (i+1)%4
+
+    plan = []
+    for barrel in barrels_sorted:
+        if plan_dict[barrel.sku] > 0:
+            plan.append({
+                "sku": barrel.sku,
+                "quantity": plan_dict[barrel.sku]
+            })
 
     return plan
-
