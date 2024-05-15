@@ -116,7 +116,7 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
 
     print("gold: ", gold)
 
-    gold = gold * 0.75
+    gold = gold * 0.5
 
     if sum(ml) > (totals['capacity_ml']+1)*10000*.2:
         return []
