@@ -123,6 +123,8 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
         if 'DARK' in b.sku:
             dark_found = True
 
+    print("capacity: ", (totals['capacity_ml']+1)*10000)
+    print("ml: ", sum(ml))
     if not dark_found or sum(ml) > (totals['capacity_ml']+1)*10000*.2:
         return []
 
