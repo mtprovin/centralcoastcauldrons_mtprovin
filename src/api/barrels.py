@@ -118,7 +118,12 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
 
     gold = gold * 0.4
 
-    if sum(ml) > (totals['capacity_ml']+1)*10000*.2:
+    dark_found = False
+    for b in barrels_sorted:
+        if 'DARK' in b.sku:
+            dark_found = True
+
+    if not dark_found or sum(ml) > (totals['capacity_ml']+1)*10000*.2:
         return []
 
     # initial pass, evenly distribute barrel colors, add cheapest barrel 1 at a time for each color
@@ -135,8 +140,8 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
         if not done_buying[c]:
             cheapest_barrel = barrels_grouped_temp[c][0]
             
-            # allow 50% of budget to be dark otherwise we'll buy almost all dark
-            if c == 3 and (budget[c]+cheapest_barrel.price) / (gold+1) > .5:
+            # allow 40% of budget to be dark otherwise we'll buy almost all dark
+            if c == 3 and (budget[c]+cheapest_barrel.price) / (gold+1) > .4:
                 done_buying[c] = True
             # if we have enough gold to buy 1 of the cheapest, add it to our budget for that color
             elif gold_remaining > cheapest_barrel.price:
