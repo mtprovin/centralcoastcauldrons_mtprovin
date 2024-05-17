@@ -142,8 +142,8 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
         if not done_buying[c]:
             cheapest_barrel = barrels_grouped_temp[c][0]
             
-            # allow 40% of budget to be dark otherwise we'll buy almost all dark
-            if c == 3 and (budget[c]+cheapest_barrel.price) / (gold+1) > .4:
+            # allow 30% of budget to be dark otherwise we'll buy almost all dark
+            if c == 3 and (budget[c]+cheapest_barrel.price) / (gold+1) > .3:
                 done_buying[c] = True
             # if we have enough gold to buy 1 of the cheapest, add it to our budget for that color
             elif gold_remaining > cheapest_barrel.price:
