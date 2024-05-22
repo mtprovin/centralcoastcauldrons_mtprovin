@@ -116,7 +116,7 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
 
     print("gold: ", gold)
 
-    gold = gold * 0.2
+    gold = gold * 0
 
     dark_found = False
     for b in barrels_sorted:
